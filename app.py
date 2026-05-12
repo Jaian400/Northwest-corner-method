@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from nw_corner_solver import nw_corner_solver
 
 app = Flask(__name__)
@@ -29,13 +29,15 @@ def solve_nw_c():
 
     allocations, total_cost = nw_corner_solver(supply, demand, costs)
 
-    return {
+    results = {
         "supply": supply,
         "demand": demand,
         "costs": costs,
         "allocations": allocations,
         "total_cost": total_cost
     }
+
+    return jsonify(results)
 
 @app.route("/")
 def index():

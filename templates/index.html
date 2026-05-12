@@ -5,13 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metoda Wierzchołka Północno-Zachodniego</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </head>
-<body class="bg-light">
+<body class="bg-body-tertiary">
+
+<button id="theme-toggle" class="btn btn-outline-secondary position-fixed top-0 end-0 m-3 z-3 shadow-sm">
+    <span id="theme-icon"></span> <span id="theme-text">Ciemny</span>
+</button>
 
 <div class="container mt-3">
-    <h2 class="text-center mb-4">Metoda Wierzchołka Północno-Zachodniego</h2>
+    <div class="">
+        <h2 class="text-center mb-4">Metoda Wierzchołka Północno-Zachodniego</h2>
+    </div>
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
@@ -40,7 +45,7 @@
         <div class="card-body">
             <h5 class="card-title">Uzupełnij koszty, podaż i popyt</h5>
             
-            <form action="/p/solve-nw-c" method="POST">
+            <form id="solver-form">
                 <input type="hidden" id="hidden-rows" name="num_rows">
                 <input type="hidden" id="hidden-cols" name="num_cols">
 
@@ -49,13 +54,81 @@
                     </table>
                 </div>
                 
-                <button type="submit" class="btn btn-primary w-100 mt-3">Rozwiąż problem</button>
+                <button type="submit" class="btn btn-primary w-100 mt-3">Rozwiąż</button>
             </form>
         </div>
     </div>
+
+    <div class="card mt-4 mb-4" id="results-container" style="display: none;">
+        <div class="card shadow-lg border-success">
+            <div class="card-body">
+                <h3 class="card-title text-center mb-3">WYNIKI</h3>
+                <pre class="bg-dark text-light p-3 rounded" id="json-output"></pre>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
+    document.getElementById('solver-form').addEventListener('submit', function(event) {
+        event.preventDefault(); 
+
+        const formData = new FormData(this);
+
+        fetch('/p/solve-nw-c', {
+            method: 'POST',
+            body: formData 
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Błąd serwera');
+            }
+            return response.json(); 
+        })
+        .then(data => {
+            document.getElementById('results-container').style.display = 'block';
+            document.getElementById('json-output').textContent = JSON.stringify(data, null, 4);
+            document.getElementById('results-container').scrollIntoView({ behavior: 'smooth' });
+        })
+        .catch(error => {
+            console.error('Wystąpił błąd:', error);
+            alert("Coś poszło nie tak podczas obliczeń!");
+        });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
+        const htmlElement = document.documentElement; 
+        
+        const savedTheme = localStorage.getItem('app-theme') || 'light';
+        
+        applyTheme(savedTheme);
+
+        themeToggleBtn.addEventListener('click', () => {
+            const currentTheme = htmlElement.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            
+            applyTheme(newTheme);
+        });
+
+        function applyTheme(theme) {
+            htmlElement.setAttribute('data-bs-theme', theme);
+            
+            localStorage.setItem('app-theme', theme);
+
+            if (theme === 'dark') {
+                themeText.textContent = 'Jasny';
+                themeToggleBtn.classList.replace('btn-outline-secondary', 'btn-outline-light');
+            } else {
+                themeText.textContent = 'Ciemny';
+                themeToggleBtn.classList.replace('btn-outline-light', 'btn-outline-secondary');
+            }
+        }
+    });
+
     var table;
 
     function addRow(){
@@ -78,21 +151,21 @@
         for (let j = 0; j < cols; j++) {
             table += `<th>Odbiorca ${j + 1}</th>`;
         }
-        table += '<th class="table-info">Podaż</th></tr></thead><tbody>';
+        table += '<th class=""bg-body-tertiary">Podaż</th></tr></thead><tbody>';
 
         for (let i = 0; i < rows; i++) {
             table += `<tr><th>Dostawca ${i + 1}</th>`;
             for (let j = 0; j < cols; j++) {
                 table += `<td><input type="number" name="cost_${i}_${j}" class="form-control" required></td>`;
             }
-            table += `<td class="table-info"><input type="number" name="supply_${i}" class="form-control" required></td></tr>`;
+            table += `<td class=""bg-body-tertiary"><input type="number" name="supply_${i}" class="form-control" required></td></tr>`;
         }
 
-        table += '</tbody><tfoot><tr><th class="table-warning">Popyt</th>';
+        table += '</tbody><tfoot><tr><th class=""bg-body-tertiary">Popyt</th>';
         for (let j = 0; j < cols; j++) {
-            table += `<td class="table-warning"><input type="number" name="demand_${j}" class="form-control" required></td>`;
+            table += `<td class=""bg-body-tertiary"><input type="number" name="demand_${j}" class="form-control" required></td>`;
         }
-        table += '<td class="bg-light"></td></tr></tfoot>';
+        table += '<td class=""bg-body-tertiary"></td></tr></tfoot>';
 
         document.getElementById('input-table').innerHTML = table;
         document.getElementById('matrix-card').style.display = 'block';
