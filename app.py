@@ -10,7 +10,7 @@ def solve_nw_c():
     
     supply = []
     demand = []
-    costs = []
+    profits = []
 
     for i in range(num_rows):
         val = int(request.form.get(f'supply_{i}'))
@@ -21,20 +21,26 @@ def solve_nw_c():
         demand.append(val)
 
     for i in range(num_rows):
-        row_costs = []
+        row_profits = []
         for j in range(num_cols):
             val = int(request.form.get(f'cost_{i}_{j}'))
-            row_costs.append(val)
-        costs.append(row_costs)
+            row_profits.append(val)
+        profits.append(row_profits)
 
-    allocations, total_cost = nw_corner_solver(supply, demand, costs)
+    result = nw_corner_solver(supply, demand, profits)
 
     results = {
-        "supply": supply,
-        "demand": demand,
-        "costs": costs,
-        "allocations": allocations,
-        "total_cost": total_cost
+        "supply": result.get("supply", supply),
+        "demand": result.get("demand", demand),
+        "profit": result.get("profit", profits),
+        "allocations": result["allocations"],
+        "total_profit": result.get("total_profit", result.get("total_cost")),
+        "total_cost": result["total_cost"],
+        "balanced": result["balanced"],
+        "dummy_added": result["dummy_added"],
+        "balance_note": result["balance_note"],
+        "is_optimal": result["is_optimal"],
+        "optimality_details": result["optimality_details"],
     }
 
     return jsonify(results)
