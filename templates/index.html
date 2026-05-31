@@ -80,10 +80,10 @@
         </div>
     </div>
 
-    <div class="card mt-4 border-primary style="display: none;"">
+    <div class="card mt-4 mb-4" id="results-main" style="display: none;">
         <div class="card-body">
-            <h4 class="card-title text-primary text-center">Wizualizacja Tras</h4>
-            <div id="network-graph" style="height: 500px; border: 1px solid lightgray; background: #f8f9fa;"></div>
+            <h4 class="card-title text-center">Wizualizacja Tras</h4>
+            <div id="network-graph" style="height: 500px; border: 1px solid lightgray"></div>
         </div>
     </div>
 
@@ -139,7 +139,8 @@
             renderGraph(data);
             document.getElementById('results-table-container').innerHTML = tableHTML;
             // document.getElementById('json-output').textContent = JSON.stringify(data, null, 4);
-            document.getElementById('results-container').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('results-main').style.display = 'block';
+            document.getElementById('results-main').scrollIntoView({ behavior: 'smooth' });
         })
         .catch(error => {
             console.error('Wystąpił błąd:', error);
@@ -253,46 +254,75 @@
     }
 
     function renderResultsTable(data) {
-        const rows = data.supply.length;
-        const cols = data.demand.length;
+        const rows = data.supply.length + 1;
+        const cols = data.demand.length + 1;
+        console.log(JSON.stringify(data.allocations, null, 2));
 
         let html = '<div class="table-responsive"><table class="table table-bordered text-center align-middle">';
 
         html += '<thead><tr><th class="bg-body-tertiary"></th>';
         for (let j = 0; j < cols; j++) {
-            html += `<th>Odbiorca ${j + 1}</th>`;
+            if(j+1 === cols){
+                html += `<th>FO</th>`;
+            } else {
+                html += `<th>Odbiorca ${j + 1}</th>`;
+            }   
         }
         html += '<th class="bg-body-tertiary">Podaż</th></tr></thead><tbody>';
 
         for (let i = 0; i < rows; i++) {
-            html += `<tr><th class="bg-body-tertiary">Dostawca ${i + 1}</th>`;
+            if(i+1 === rows){
+                html += `<tr><th class="bg-body-tertiary">FD</th>`;
+            } else {
+                html += `<tr><th class="bg-body-tertiary">Dostawca ${i + 1}</th>`;
+            } 
             
             for (let j = 0; j < cols; j++) {
                 const alloc = data.allocations[i][j];
-                const cost = data.profit[i][j];
+                let profit = 0;
+                try {
+                    profit = data.profit[i][j] !== undefined ? data.profit[i][j] : 0;
+                } catch {
+                    profit = 0;
+                }
                 
                 const cellClass = alloc > 0 ? 'table-success' : '';
                 
                 html += `<td class="">
-                            <div class="text-end text-muted mb-1" style="font-size: 0.75rem;">koszt: ${cost}</div>
+                            <div class="text-end text-muted mb-1" style="font-size: 0.75rem;">zysk: ${profit}</div>
                             <strong class="fs-5">${alloc}</strong>
                             <br>
                             <br>
                         </td>`;
             }
-            html += `<td class="bg-body-tertiary fw-bold">${data.supply[i]}</td></tr>`;
+            if(i+1 === rows){
+                let num = 0
+                for (let j = 0; j < cols; j++) {
+                    num += data.allocations[i][j];
+                }
+                html += `<td class="bg-body-tertiary fw-bold">${num}</td></tr>`;
+            } else {
+                html += `<td class="bg-body-tertiary fw-bold">${data.supply[i]}</td></tr>`;
+            } 
         }
 
         html += '</tbody><tfoot><tr><th class="bg-body-tertiary">Popyt</th>';
         for (let j = 0; j < cols; j++) {
-            html += `<td class="bg-body-tertiary fw-bold">${data.demand[j]}</td>`;
+            if(j+1 === cols){
+                let num = 0
+                for (let i = 0; i< cols; i++) {
+                    num += data.allocations[i][j];
+                }
+                html += `<td class="bg-body-tertiary fw-bold">${num}</td>`;
+            } else {
+                html += `<td class="bg-body-tertiary fw-bold">${data.demand[j]}</td>`;
+            } 
         }
         html += '<td class="bg-body-tertiary"></td></tr></tfoot></table></div>';
 
         html += `
             <div class="text-center mt-4">
-                <h4>Całkowity koszt transportu: 
-                    <span class="badge bg-success p-2 fs-5">${data.total_cost}</span>
+                <h4>Całkowity zysk: <span class="badge bg-success p-2 fs-5">${data.total_profit}</span>
                 </h4>
             </div>
         `;
@@ -337,7 +367,7 @@
                         to: `D${j}`,
                         label: `${alloc}`,
                         arrows: 'to',
-                        font: { align: 'middle' },
+                        font: { size: 16, align: 'middle', strokeWidth: 2 },
                         color: { color: '#007bff' },
                         width: 2
                     });
@@ -351,7 +381,9 @@
             layout: {
                 hierarchical: {
                     direction: 'LR',
-                    sortMethod: 'directed'
+                    sortMethod: 'directed',
+                    nodeSpacing: 250,
+                    levelSpacing: 250  
                 }
             }
         };

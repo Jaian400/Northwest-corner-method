@@ -50,7 +50,7 @@ def solve_nw_c():
         "supply": result.get("supply", supply),
         "demand": result.get("demand", demand),
         "profit": result.get("profit", profits),
-        "allocations": result["allocations"],
+        "allocations": result["full_allocations"],
         "total_profit": result.get("total_profit"),
         "balanced": result["balanced"],
         "dummy_added": result["dummy_added"],
