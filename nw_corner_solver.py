@@ -133,7 +133,9 @@ def calculate_uv_potentials(basic_cells, profit):
     return u, v
 
 
-def compute_reduced_costs(basic_cells, cost, profit):
+def compute_reduced_costs(basic_cells, cost, profit, blocked_suppliers=None):
+    if blocked_suppliers is None:
+        blocked_suppliers = []
     rows = len(cost)
     cols = len(cost[0])
     u, v = calculate_uv_potentials(basic_cells, cost)
@@ -141,6 +143,9 @@ def compute_reduced_costs(basic_cells, cost, profit):
     reduced_costs = []
     for i in range(rows):
         for j in range(cols):
+            # If supplier is blocked, disallow allocation to dummy column
+            if blocked_suppliers and i in blocked_suppliers and j == cols - 1:
+                continue
             if (i, j) in basic_cells:
                 continue
             reduced_cost = cost[i][j] - u[i] - v[j]
@@ -154,6 +159,56 @@ def compute_reduced_costs(basic_cells, cost, profit):
 
     reduced_costs.sort(key=lambda item: item["reduced_profit"], reverse=True)
     return reduced_costs, u, v
+
+
+def fix_blocked_suppliers_allocations(allocations, blocked_suppliers, real_cols_count):
+    """
+    For each blocked supplier, ensure there is no allocation to the dummy column
+    (last column). If there is, attempt to move that quantity to real columns by
+    shifting allocations from non-blocked suppliers to the dummy column.
+    Returns True if all blocked suppliers were fixed, False if some remainder
+    could not be reassigned.
+    """
+    rows = len(allocations)
+    cols = len(allocations[0])
+    dummy_col = cols - 1
+
+    for i in blocked_suppliers or []:
+        if i < 0 or i >= rows:
+            continue
+        need = allocations[i][dummy_col]
+        if need <= 0:
+            continue
+
+        # Try to move `need` to real columns
+        for j in range(real_cols_count):
+            if need <= 0:
+                break
+            # Look for a supplier k (not blocked) that currently supplies column j
+            for k in range(rows):
+                if k == i:
+                    continue
+                if blocked_suppliers and k in blocked_suppliers:
+                    continue
+                available = allocations[k][j]
+                if available <= 0:
+                    continue
+                transfer = min(available, need)
+                # move transfer from k->j to k->dummy, and from i->dummy to i->j
+                allocations[k][j] -= transfer
+                allocations[k][dummy_col] += transfer
+                allocations[i][j] += transfer
+                allocations[i][dummy_col] -= transfer
+                need -= transfer
+                if need <= 0:
+                    break
+
+        # if after trying all real cols we still have need>0, we couldn't satisfy constraint
+        if allocations[i][dummy_col] > 0:
+            # leave as is and report failure
+            return False
+
+    return True
 
 
 def find_cycle(basic_cells, start_cell, rows, cols):
@@ -187,7 +242,7 @@ def find_cycle(basic_cells, start_cell, rows, cols):
     return search([start_cell], False)
 
 
-def improve_solution(allocations, cost, profit):
+def improve_solution(allocations, cost, profit, blocked_suppliers=None):
     rows = len(cost)
     cols = len(cost[0])
     basic_cells = build_basic_cells(allocations)
@@ -197,7 +252,7 @@ def improve_solution(allocations, cost, profit):
     max_degeneration_iterations = rows + cols
 
     while True:
-        reduced_costs, u, v = compute_reduced_costs(basic_cells, cost, profit)
+        reduced_costs, u, v = compute_reduced_costs(basic_cells, cost, profit, blocked_suppliers)
         if not reduced_costs or reduced_costs[0]["reduced_profit"] <= 0:
             optimal = True
             break
@@ -258,14 +313,14 @@ def improve_solution(allocations, cost, profit):
         if len(basic_cells) != rows + cols - 1:
             basic_cells = build_basic_cells(allocations)
 
-    reduced_costs, u, v = compute_reduced_costs(basic_cells, cost, profit)
+    reduced_costs, u, v = compute_reduced_costs(basic_cells, cost, profit, blocked_suppliers)
     if reduced_costs and reduced_costs[0]["reduced_profit"] > 0:
         optimal = False
 
     return allocations, optimal, reduced_costs
 
 
-def nw_corner_solver(supply, demand, profit):
+def nw_corner_solver(supply, demand, profit, blocked_suppliers=None):
     total_supply = sum(supply)
     total_demand = sum(demand)
     (
@@ -279,8 +334,16 @@ def nw_corner_solver(supply, demand, profit):
     ) = balance_problem(supply, demand, profit)
 
     internal_costs = [[-value for value in row] for row in balanced_profit]
+    if blocked_suppliers is None:
+        blocked_suppliers = []
+
     allocations = northwest_corner_allocation(balanced_supply, balanced_demand)
-    allocations, is_optimal, reduced_costs = improve_solution(allocations, internal_costs, balanced_profit)
+
+    # Ensure blocked suppliers do not send to dummy receiver (last column)
+    real_cols = len(demand)
+    blocked_ok = fix_blocked_suppliers_allocations(allocations, blocked_suppliers, real_cols)
+
+    allocations, is_optimal, reduced_costs = improve_solution(allocations, internal_costs, balanced_profit, blocked_suppliers)
 
     trimmed_allocations = [row[: len(demand)] for row in allocations[: len(supply)]]
     total_profit = calculate_total_profit(trimmed_allocations, profit)
@@ -289,7 +352,6 @@ def nw_corner_solver(supply, demand, profit):
         "allocations": trimmed_allocations,
         "full_allocations": allocations,
         "total_profit": total_profit,
-        "total_cost": total_profit,
         "balanced": True,
         "dummy_added": True,
         "balance_note": balance_note,
@@ -302,6 +364,8 @@ def nw_corner_solver(supply, demand, profit):
             else f"Rozwiązanie nie jest optymalne. Największy dodatni zysk alternatywny: {reduced_costs[0]['reduced_profit']} w komórce {reduced_costs[0]['cell']}"
         ),
         "reduced_costs": reduced_costs,
+        "blocked_suppliers_ok": blocked_ok,
+        "blocked_suppliers": blocked_suppliers,
     }
 
 

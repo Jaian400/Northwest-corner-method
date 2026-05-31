@@ -36,16 +36,22 @@ def solve_nw_c():
             val = int(request.form.get(f'cost_{i}_{j}'))
             row_profits.append(selling_price[j] -  val - buying_price[i])
         profits.append(row_profits)
+    # Odczytaj zablokowanych dostawców (wysyłane jako JSON z frontendu)
+    import json
+    blocked_suppliers_json = request.form.get('blocked_suppliers', '[]')
+    try:
+        blocked_suppliers = json.loads(blocked_suppliers_json)
+    except Exception:
+        blocked_suppliers = []
 
-    result = nw_corner_solver(supply, demand, profits)
+    result = nw_corner_solver(supply, demand, profits, blocked_suppliers=blocked_suppliers)
 
     results = {
         "supply": result.get("supply", supply),
         "demand": result.get("demand", demand),
         "profit": result.get("profit", profits),
         "allocations": result["allocations"],
-        "total_profit": result.get("total_profit", result.get("total_cost")),
-        "total_cost": result["total_cost"],
+        "total_profit": result.get("total_profit"),
         "balanced": result["balanced"],
         "dummy_added": result["dummy_added"],
         "balance_note": result["balance_note"],
