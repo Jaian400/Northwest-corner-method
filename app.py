@@ -11,20 +11,30 @@ def solve_nw_c():
     supply = []
     demand = []
     profits = []
+    buying_price = []
+    selling_price = []
 
     for i in range(num_rows):
         val = int(request.form.get(f'supply_{i}'))
         supply.append(val)
 
+    for i in range(num_rows):
+        val = int(request.form.get(f'buying_price_{i}'))
+        buying_price.append(val)
+
     for j in range(num_cols):
         val = int(request.form.get(f'demand_{j}'))
         demand.append(val)
+
+    for j in range(num_cols):
+        val = int(request.form.get(f'selling_price_{j}'))
+        selling_price.append(val)
 
     for i in range(num_rows):
         row_profits = []
         for j in range(num_cols):
             val = int(request.form.get(f'cost_{i}_{j}'))
-            row_profits.append(val)
+            row_profits.append(selling_price[j] -  val - buying_price[i])
         profits.append(row_profits)
 
     result = nw_corner_solver(supply, demand, profits)
