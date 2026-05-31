@@ -44,7 +44,7 @@
 
     <div class="card shadow-sm" id="matrix-card" style="display: none;">
         <div class="card-body">
-            <h5 class="card-title">Uzupełnij koszty, podaż i popyt</h5>
+            <h5 class="card-title">Uzupełnij koszty transportu, podaż i popyt</h5>
             
             <form id="solver-form">
                 <input type="hidden" id="hidden-rows" name="num_rows">
@@ -54,14 +54,41 @@
                     <table class="table table-bordered text-center align-middle" id="input-table">
                     </table>
                 </div>
+
+                <br>
+
+                <div class="row g-4"> 
+        
+                    <div class="col-md-6">
+                        <div class="table-responsive">
+                            <table class="table table-bordered text-center align-middle" id="input-table-2">
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="table-responsive">
+                            <table class="table table-bordered text-center align-middle" id="input-table-3">
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
                 
                 <button type="submit" class="btn btn-primary w-100 mt-3">Rozwiąż</button>
             </form>
         </div>
     </div>
 
+    <div class="card mt-4 border-primary style="display: none;"">
+        <div class="card-body">
+            <h4 class="card-title text-primary text-center">Wizualizacja Tras</h4>
+            <div id="network-graph" style="height: 500px; border: 1px solid lightgray; background: #f8f9fa;"></div>
+        </div>
+    </div>
+
     <div class="card mt-4 mb-4" id="results-container" style="display: none;">
-        <div class="card shadow-lg border-success">
+        <div class="card shadow-lg">
             <div class="card-body">
                 <h3 class="card-title text-center mb-4">WYNIK</h3>
                 <div id="results-table-container"></div>
@@ -71,11 +98,30 @@
 
 </div>
 
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
 <script>
     document.getElementById('solver-form').addEventListener('submit', function(event) {
         event.preventDefault(); 
 
         const formData = new FormData(this);
+
+        const rows = parseInt(document.getElementById('rows').value);
+        const blocked = [];
+
+        for (let i = 0; i < rows; i++) {
+            const key = `blocked_supplier_${i}`;
+            
+            if (formData.has(key)) {
+                blocked.push(i); 
+                formData.delete(key); 
+            }
+        }
+        formData.append('blocked_suppliers', JSON.stringify(blocked));
+
+        console.clear();
+        const dataToSend = Object.fromEntries(formData.entries());
+        console.table(dataToSend);
 
         fetch('/p/solve-nw-c', {
             method: 'POST',
@@ -90,6 +136,7 @@
         .then(data => {
             document.getElementById('results-container').style.display = 'block';
             const tableHTML = renderResultsTable(data);
+            renderGraph(data);
             document.getElementById('results-table-container').innerHTML = tableHTML;
             // document.getElementById('json-output').textContent = JSON.stringify(data, null, 4);
             document.getElementById('results-container').scrollIntoView({ behavior: 'smooth' });
@@ -152,12 +199,12 @@
         let table = '<thead><tr><th>Koszty</th>';
         
         for (let j = 0; j < cols; j++) {
-            table += `<th>Odbiorca ${j + 1}</th>`;
+            table += `<th>Odbiorca ${j + 1} </th>`;
         }
         table += '<th class=""bg-body-tertiary">Podaż</th></tr></thead><tbody>';
 
         for (let i = 0; i < rows; i++) {
-            table += `<tr><th>Dostawca ${i + 1}</th>`;
+            table += `<tr><th>Dostawca ${i + 1} <br> Blokada: <input type="checkbox" name="blocked_supplier_${i}" value="true" class=""></th>`;
             for (let j = 0; j < cols; j++) {
                 table += `<td><input type="number" name="cost_${i}_${j}" class="form-control" required></td>`;
             }
@@ -172,6 +219,37 @@
 
         document.getElementById('input-table').innerHTML = table;
         document.getElementById('matrix-card').style.display = 'block';
+
+        generateTable2(rows, cols);
+        generateTable3(rows, cols);
+    }
+
+    function generateTable2(rows, cols) {
+        let table = '<thead><tr><th class="align-middle bg-body-tertiary"></th>';
+        table += `<th class="align-middle">Cena zakupu</th></tr></thead><tbody>`;
+
+        for (let i = 0; i < rows; i++) {
+            table += `<tr><th class="align-middle bg-body-tertiary">Dostawca ${i + 1}</th>`;
+            table += `<td><input type="number" name="buying_price_${i}" class="form-control" required></td>`;
+            table += `</tr>`;
+        }
+        table += '</tbody>';
+
+        document.getElementById('input-table-2').innerHTML = table;
+    }
+
+    function generateTable3(rows, cols) {
+        let table = '<thead><tr><th class="align-middle bg-body-tertiary"></th>';
+        table += `<th class="align-middle">Cena sprzedaży</th></tr></thead><tbody>`;
+
+        for (let j = 0; j < cols; j++) {
+            table += `<tr><th class="align-middle bg-body-tertiary">Odbiorca ${j + 1}</th>`;
+            table += `<td><input type="number" name="selling_price_${j}" class="form-control" required></td>`;
+            table += `</tr>`;
+        }
+        table += '</tbody>';
+
+        document.getElementById('input-table-3').innerHTML = table;
     }
 
     function renderResultsTable(data) {
@@ -220,6 +298,65 @@
         `;
 
         return html;
+    }
+
+    function renderGraph(data) {
+        const container = document.getElementById('network-graph');
+        
+        let nodes = [];
+        let edges = [];
+
+        const numRows = data.supply.length;
+        const numCols = data.demand.length;
+
+        for (let i = 0; i < numRows; i++) {
+            nodes.push({
+                id: `S${i}`, 
+                label: `Dostawca ${i+1}\n(Podaż: ${data.supply[i]})`, 
+                color: '#ffcccc',
+                shape: 'box'
+            });
+        }
+
+        for (let j = 0; j < numCols; j++) {
+            nodes.push({
+                id: `D${j}`, 
+                label: `Odbiorca ${j+1}\n(Popyt: ${data.demand[j]})`, 
+                color: '#ccffcc', 
+                shape: 'ellipse'
+            });
+        }
+
+        for (let i = 0; i < numRows; i++) {
+            for (let j = 0; j < numCols; j++) {
+                let alloc = data.allocations[i][j];
+                
+                if (alloc > 0) {
+                    edges.push({
+                        from: `S${i}`,
+                        to: `D${j}`,
+                        label: `${alloc}`,
+                        arrows: 'to',
+                        font: { align: 'middle' },
+                        color: { color: '#007bff' },
+                        width: 2
+                    });
+                }
+            }
+        }
+
+        const graphData = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+        const options = {
+            physics: { enabled: true }, 
+            layout: {
+                hierarchical: {
+                    direction: 'LR',
+                    sortMethod: 'directed'
+                }
+            }
+        };
+        
+        new vis.Network(container, graphData, options);
     }
 
     window.onload = generateTable;
