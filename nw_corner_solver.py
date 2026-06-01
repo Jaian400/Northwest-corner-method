@@ -317,7 +317,7 @@ def improve_solution(allocations, cost, profit, blocked_suppliers=None):
     if reduced_costs and reduced_costs[0]["reduced_profit"] > 0:
         optimal = False
 
-    return allocations, optimal, reduced_costs
+    return allocations, optimal, reduced_costs, u, v, degeneration_counter
 
 
 def nw_corner_solver(supply, demand, profit, blocked_suppliers=None):
@@ -343,7 +343,7 @@ def nw_corner_solver(supply, demand, profit, blocked_suppliers=None):
     real_cols = len(demand)
     blocked_ok = fix_blocked_suppliers_allocations(allocations, blocked_suppliers, real_cols)
 
-    allocations, is_optimal, reduced_costs = improve_solution(allocations, internal_costs, balanced_profit, blocked_suppliers)
+    allocations, is_optimal, reduced_costs, u, v, degeneration_counter = improve_solution(allocations, internal_costs, balanced_profit, blocked_suppliers)
 
     trimmed_allocations = [row[: len(demand)] for row in allocations[: len(supply)]]
     total_profit = calculate_total_profit(trimmed_allocations, profit)
@@ -366,6 +366,9 @@ def nw_corner_solver(supply, demand, profit, blocked_suppliers=None):
         "reduced_costs": reduced_costs,
         "blocked_suppliers_ok": blocked_ok,
         "blocked_suppliers": blocked_suppliers,
+        "u" : u,
+        "v" : v,
+        "degeneration_counter": degeneration_counter
     }
 
 

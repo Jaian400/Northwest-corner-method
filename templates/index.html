@@ -133,7 +133,8 @@
             }
             return response.json(); 
         })
-        .then(data => {
+        .then(data => { 
+            console.log(JSON.stringify(data, null, 2));
             document.getElementById('results-container').style.display = 'block';
             const tableHTML = renderResultsTable(data);
             renderGraph(data);
@@ -254,16 +255,22 @@
     }
 
     function renderResultsTable(data) {
-        const rows = data.supply.length + 1;
-        const cols = data.demand.length + 1;
-        console.log(JSON.stringify(data.allocations, null, 2));
+        const idx_FD = data.supply.length;       
+        const idx_Beta = data.supply.length + 1;
+        const rows = idx_Beta + 1;
+
+        const idx_FO = data.demand.length;     
+        const idx_Alfa = data.demand.length + 1;
+        const cols = idx_Alfa + 1;
 
         let html = '<div class="table-responsive"><table class="table table-bordered text-center align-middle">';
 
         html += '<thead><tr><th class="bg-body-tertiary"></th>';
         for (let j = 0; j < cols; j++) {
-            if(j+1 === cols){
+            if (j === idx_FO) {
                 html += `<th>FO</th>`;
+            } else if (j === idx_Alfa) {
+                html += `<th>Alfa</th>`;
             } else {
                 html += `<th>Odbiorca ${j + 1}</th>`;
             }   
@@ -271,36 +278,65 @@
         html += '<th class="bg-body-tertiary">Podaż</th></tr></thead><tbody>';
 
         for (let i = 0; i < rows; i++) {
-            if(i+1 === rows){
+            if (i === idx_FD) {
                 html += `<tr><th class="bg-body-tertiary">FD</th>`;
+            } else if (i === idx_Beta) {
+                html += `<tr><th class="bg-body-tertiary">Beta</th>`;
             } else {
                 html += `<tr><th class="bg-body-tertiary">Dostawca ${i + 1}</th>`;
             } 
             
             for (let j = 0; j < cols; j++) {
-                const alloc = data.allocations[i][j];
-                let profit = 0;
-                try {
-                    profit = data.profit[i][j] !== undefined ? data.profit[i][j] : 0;
-                } catch {
-                    profit = 0;
+                
+                if (i === idx_Beta && j === idx_Alfa) {
+                    html += `<td></td>`;
+                    
+                } else if (i === idx_Beta) {
+                    const v_val = (data.v && data.v[j] !== undefined) ? data.v[j] : '-';
+                    html += `<td class="bg-body-tertiary"><br><strong class="fs-5">${v_val}</strong><br><br></td>`;
+                    
+                } else if (j === idx_Alfa) {
+                    const u_val = (data.u && data.u[i] !== undefined) ? data.u[i] : '-';
+                    html += `<td class="bg-body-tertiary"><br><strong class="fs-5">${u_val}</strong><br><br></td>`;
+                    
+                } else {
+                    const alloc = data.allocations?.[i]?.[j] || 0;
+                    const profit = data.profit?.[i]?.[j] || 0;
+
+                    html += `<td>
+                                <div class="text-end text-muted mb-1" style="font-size: 0.75rem;">zysk: ${profit}</div>
+                                <strong class="fs-5">${alloc > 0 ? alloc : '0'}</strong><br>`;
+                    
+                    let delta = '';
+                    if (data.reduced_costs) {
+                        for (let c of data.reduced_costs) {
+                            if (c.cell[0] === i && c.cell[1] === j) {
+                                delta = c.reduced_profit;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (delta !== '') {
+                        html += `<div class="text-end mt-1" style="font-size: 0.75rem;">delta: ${delta}</div>`;
+                    } else {
+                        html += `<div class="mt-1" style="font-size: 0.75rem;">&nbsp;</div>`;
+                    }
+
+                    html += `</td>`; 
                 }
-                
-                const cellClass = alloc > 0 ? 'table-success' : '';
-                
-                html += `<td class="">
-                            <div class="text-end text-muted mb-1" style="font-size: 0.75rem;">zysk: ${profit}</div>
-                            <strong class="fs-5">${alloc}</strong>
-                            <br>
-                            <br>
-                        </td>`;
             }
-            if(i+1 === rows){
-                let num = 0
-                for (let j = 0; j < cols; j++) {
-                    num += data.allocations[i][j];
+            
+            if (i === idx_FD) {
+                let num = 0;
+                if (data.allocations && data.allocations[i]) {
+                    num = data.allocations[i].reduce((a, b) => a + b, 0);
                 }
                 html += `<td class="bg-body-tertiary fw-bold">${num}</td></tr>`;
+                
+            } else if (i === idx_Beta) {
+                html += `<td class="bg-body-tertiary"></td></tr>`;
+                
             } else {
                 html += `<td class="bg-body-tertiary fw-bold">${data.supply[i]}</td></tr>`;
             } 
@@ -308,24 +344,22 @@
 
         html += '</tbody><tfoot><tr><th class="bg-body-tertiary">Popyt</th>';
         for (let j = 0; j < cols; j++) {
-            if(j+1 === cols){
-                let num = 0
-                for (let i = 0; i< cols; i++) {
-                    num += data.allocations[i][j];
+            
+            if (j === idx_Alfa) {
+                html += `<td class="bg-body-tertiary"></td>`;
+                
+            } else if (j === idx_FO) {
+                let num = 0;
+                for (let i = 0; i < idx_Beta; i++) {
+                    num += data.allocations?.[i]?.[j] || 0;
                 }
                 html += `<td class="bg-body-tertiary fw-bold">${num}</td>`;
+                
             } else {
                 html += `<td class="bg-body-tertiary fw-bold">${data.demand[j]}</td>`;
             } 
         }
         html += '<td class="bg-body-tertiary"></td></tr></tfoot></table></div>';
-
-        html += `
-            <div class="text-center mt-4">
-                <h4>Całkowity zysk: <span class="badge bg-success p-2 fs-5">${data.total_profit}</span>
-                </h4>
-            </div>
-        `;
 
         return html;
     }
@@ -382,8 +416,7 @@
                 hierarchical: {
                     direction: 'LR',
                     sortMethod: 'directed',
-                    nodeSpacing: 250,
-                    levelSpacing: 250  
+                    nodeSpacing: 250
                 }
             }
         };

@@ -45,8 +45,24 @@ def solve_nw_c():
         blocked_suppliers = []
 
     result = nw_corner_solver(supply, demand, profits, blocked_suppliers=blocked_suppliers)
+    
+    trimmed_allocations = result["allocations"]
 
+    transport = 0
+    cost_buying = 0
+    income = 0
+
+    for i in range(num_rows):
+        for j in range(num_cols):
+            cost_transport = int(request.form.get(f'cost_{i}_{j}'))
+            transport += trimmed_allocations[i][j] * cost_transport
+            cost_buying += trimmed_allocations[i][j] * buying_price[i]
+            income += trimmed_allocations[i][j] * selling_price[j]
+    
     results = {
+        "transport" : transport,
+        "cost_buying" : cost_buying,
+        "income" : income,
         "supply": result.get("supply", supply),
         "demand": result.get("demand", demand),
         "profit": result.get("profit", profits),
@@ -57,6 +73,10 @@ def solve_nw_c():
         "balance_note": result["balance_note"],
         "is_optimal": result["is_optimal"],
         "optimality_details": result["optimality_details"],
+        "reduced_costs": result["reduced_costs"],
+        "u": result["u"],
+        "v": result["v"],
+        "degeneration_counter": result["degeneration_counter"]
     }
 
     return jsonify(results)
